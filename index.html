@@ -309,15 +309,18 @@ body { font-family: var(--font); background: #E8EDF2; color: var(--text); }
 /* Hero banner */
 .doc-hero {
   position: relative; height: 160px; overflow: hidden;
-  background: linear-gradient(135deg, #1B3A5C 0%, #2E6DA4 60%, #1B3A5C 100%);
 }
 .doc-hero-bg {
-  position: absolute; inset: 0; background-size: cover; background-position: center;
-  opacity: 0.45;
+  position: absolute; inset: 0;
+  background-size: cover; background-position: center center;
+  background-repeat: no-repeat;
 }
 .doc-hero-overlay {
   position: absolute; inset: 0;
-  background: linear-gradient(to right, rgba(15,37,64,0.8) 40%, rgba(15,37,64,0.25) 100%);
+  background: linear-gradient(to right, rgba(10,25,45,0.72) 0%, rgba(10,25,45,0.35) 55%, rgba(10,25,45,0.15) 100%);
+}
+.doc-hero-overlay.brand-tint {
+  /* tint set dynamically via JS */
 }
 .doc-hero-content {
   position: relative; z-index: 2; padding: 20px 28px;
@@ -340,15 +343,18 @@ body { font-family: var(--font); background: #E8EDF2; color: var(--text); }
 
 /* Section headings */
 .sec-heading {
-  font-size: 13px; font-weight: 700; color: var(--navy);
-  border-bottom: 2px solid var(--navy); padding-bottom: 4px;
+  font-size: 12px; font-weight: 700; color: var(--navy);
+  border-bottom: 2px solid var(--navy); padding-bottom: 5px;
   margin-bottom: 8px; margin-top: 14px;
+  padding-left: 8px;
+  border-left: 4px solid var(--teal);
+  text-transform: uppercase; letter-spacing: 0.04em;
 }
 .sec-heading:first-child { margin-top: 0; }
 
 /* Appreciation letter */
 .appreciation-letter { margin-bottom: 12px; }
-.appreciation-heading { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+.appreciation-heading { font-size: 14px; font-weight: 700; color: var(--navy); margin-bottom: 6px; letter-spacing: -0.01em; }
 .appreciation-body { font-size: 11px; color: #3D4A5C; line-height: 1.55; margin-bottom: 5px; }
 .appreciation-sign { font-size: 11px; color: var(--gray-text); margin-top: 5px; }
 
@@ -385,23 +391,24 @@ body { font-family: var(--font); background: #E8EDF2; color: var(--text); }
 .data-tbl { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 6px; }
 .data-tbl th {
   background: var(--navy); color: white;
-  padding: 5px 8px; text-align: left; font-size: 10px; font-weight: 600;
-  border-bottom: none;
+  padding: 6px 8px; text-align: left; font-size: 10px; font-weight: 600;
+  border-bottom: none; letter-spacing: 0.02em;
 }
 .data-tbl th:first-child { border-left: none; }
+.data-tbl tbody tr:nth-child(even) td { background: var(--light-blue); }
 .data-tbl td { padding: 5px 8px; border-bottom: 1px solid #EEF1F5; font-size: 11px; }
 .data-tbl tr:last-child td { border-bottom: none; }
 .data-tbl tfoot td {
   background: var(--navy); color: white; font-weight: 700;
   padding: 5px 8px; font-size: 11px; border-bottom: none;
 }
-.data-tbl tr:hover td { background: #F7F9FC; }
+.data-tbl tr:hover td { background: rgba(46,134,193,0.08) !important; }
 
 /* Navy header table (LTI Summary) */
 .dark-tbl { width: 100%; border-collapse: collapse; font-size: 10.5px; margin-bottom: 4px; }
 .dark-tbl th {
-  background: var(--navy); color: white; padding: 4px 8px;
-  text-align: left; font-size: 10px; font-weight: 600;
+  background: var(--navy); color: white; padding: 5px 8px;
+  text-align: left; font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
 }
 .dark-tbl td { padding: 3px 8px; border-bottom: 1px solid #EEF1F5; font-size: 10.5px; }
 .dark-tbl tr:last-child td { border-bottom: none; }
@@ -689,20 +696,44 @@ body { font-family: var(--font); background: #E8EDF2; color: var(--text); }
   </div>
 </div>
 <script>
-function checkPw() {
+async function checkPw() {
   const val = document.getElementById('pwInput').value;
-  // Check against server if hosted, or hardcoded for local use
-  fetch('/health').then(r => {
-    // We're on a server — validate password will happen server-side on API calls
-    // For login gate, still check locally (server returns 401 if wrong on AI calls)
-  }).catch(() => {});
-  if (val === (window._APP_PW || 'HRS26!')) {
+  if (!val) return;
+
+  const btn = document.querySelector('#pwGate button');
+  if (btn) btn.textContent = 'Checking...';
+
+  // Validate password against server by making a lightweight AI test call
+  try {
+    const r = await fetch('/.netlify/functions/ai', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-app-password': val },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 1, messages: [{ role: 'user', content: 'hi' }] })
+    });
+    if (r.status === 401) {
+      // Wrong password — try local hardcoded fallback
+      if (val !== 'HRS26!') {
+        if (btn) btn.textContent = 'Enter';
+        document.getElementById('pwErr').style.display = 'block';
+        document.getElementById('pwInput').value = '';
+        document.getElementById('pwInput').focus();
+        return;
+      }
+    }
+    // Any non-401 response (200, 429, 500) means password is correct
     localStorage.setItem('trb_app_password', val);
     document.getElementById('pwGate').style.display = 'none';
-  } else {
-    document.getElementById('pwErr').style.display = 'block';
-    document.getElementById('pwInput').value = '';
-    document.getElementById('pwInput').focus();
+  } catch(e) {
+    // Server unreachable — fall back to local check
+    if (val === 'HRS26!') {
+      localStorage.setItem('trb_app_password', val);
+      document.getElementById('pwGate').style.display = 'none';
+    } else {
+      if (btn) btn.textContent = 'Enter';
+      document.getElementById('pwErr').style.display = 'block';
+      document.getElementById('pwInput').value = '';
+      document.getElementById('pwInput').focus();
+    }
   }
 }
 document.addEventListener('DOMContentLoaded', function() {
@@ -1330,6 +1361,14 @@ function setCustomColor(type, inp) {
   else S.accentColor = inp.value;
   applyColors(); rend();
 }
+function hexToRgba(hex, alpha) {
+  const h = hex.replace('#','');
+  const r = parseInt(h.slice(0,2),16);
+  const g = parseInt(h.slice(2,4),16);
+  const b = parseInt(h.slice(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
 function applyColors() {
   const p = S.primaryColor || '#1B3A5C';
   const a = S.accentColor  || '#2E86C1';
@@ -1371,37 +1410,34 @@ function getAppPassword() {
   return localStorage.getItem('trb_app_password') || '';
 }
 
-// Call Anthropic API — routes through server-side proxy (key never exposed to browser)
+// Call Anthropic API — routes through serverless function (key never exposed to browser)
 async function callAnthropic(body) {
-  // When hosted on Railway/server: use relative /v1/messages (server holds the key)
-  // When running locally via proxy.js: use localhost:3579
-  // When running in claude.ai artifact: use direct with browser header
+  // Tries in order: Netlify function → Railway/server → local proxy
+  const pw = getAppPassword();
   const endpoints = [
-    () => fetch('/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-password': getAppPassword() },
-      body: JSON.stringify(body)
-    }),
-    () => fetch('http://localhost:3579/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-app-password': getAppPassword() },
-      body: JSON.stringify(body)
-    }),
+    '/.netlify/functions/ai',   // Netlify hosted
+    '/v1/messages',             // Railway/server hosted
+    'http://localhost:3579/v1/messages', // local proxy.js
   ];
 
-  for (const attempt of endpoints) {
+  for (const endpoint of endpoints) {
     try {
-      const r = await attempt();
+      const r = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-app-password': pw },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(35000)
+      });
       if (r.ok) return r;
       if (r.status === 401) throw new Error('Invalid password');
       if (r.status === 429) throw new Error('Rate limit reached — try again in an hour');
-      if (r.status >= 400 && r.status < 500) return r;
+      if (r.status >= 400 && r.status < 500) return r; // real error, stop retrying
     } catch(e) {
       if (e.message.includes('Invalid password') || e.message.includes('Rate limit')) throw e;
-      console.warn('[callAnthropic] attempt failed:', e.message);
+      console.warn('[callAnthropic] endpoint failed:', endpoint, e.message);
     }
   }
-  throw new Error('Could not reach API server');
+  throw new Error('Could not reach API server — check deployment');
 }
 
 async function testApiKey() {
@@ -1577,55 +1613,100 @@ async function fetchBrand() {
       aiRewriteContent(companyName, domain, scraped || {})
     ]);
 
-    // ── Logo ──
+    // ── Logo preview (auto-applied below) ──
     if (logoResult) {
       brandFetchData.logoUrl = logoResult;
       document.getElementById('brandLogoPreview').src = logoResult;
       document.getElementById('brandLogoRow').style.display = 'flex';
     }
 
-    // ── Hero images ──
+    // ── Colors — auto-apply immediately ──
+    if (colors && colors.length > 0) {
+      brandFetchData.colors = colors;
+      renderBrandPalette(colors);
+      document.getElementById('brandColorsRow').style.display = 'block';
+      // Auto-apply: set primary + accent and update all CSS vars
+      const primary = colors.find(c => c.role === 'primary');
+      const accent  = colors.find(c => c.role === 'accent');
+      if (primary) {
+        S.primaryColor = primary.hex;
+        const pc = document.getElementById('primaryCustom');
+        if (pc) pc.value = primary.hex;
+      }
+      if (accent) {
+        S.accentColor = accent.hex;
+        const ac = document.getElementById('accentCustom');
+        if (ac) ac.value = accent.hex;
+      }
+      applyColors();
+    }
+
+    // ── Hero — auto-apply first image immediately ──
     if (heroUrls && heroUrls.length > 0) {
       brandFetchData.heroUrls = heroUrls;
       brandFetchData.selectedHeroIdx = 0;
       renderHeroPreviews(heroUrls);
       document.getElementById('brandHeroRow').style.display = 'block';
+      // Auto-apply first hero image
+      try {
+        const dataUrl = await imageUrlToDataUrl(heroUrls[0]);
+        S.heroBgSrc = dataUrl;
+      } catch(e) {
+        S.heroBgSrc = heroUrls[0]; // fallback to direct URL
+      }
     }
 
-    // ── Colors ──
-    if (colors && colors.length > 0) {
-      brandFetchData.colors = colors;
-      renderBrandPalette(colors);
-      document.getElementById('brandColorsRow').style.display = 'block';
+    // ── Logo — auto-apply ──
+    if (logoResult) {
+      try {
+        const logoData = await imageUrlToDataUrl(logoResult);
+        S.logoSrc = logoData;
+        document.getElementById('logoPreview').src = logoData;
+        document.getElementById('logoPreview').style.display = 'block';
+      } catch(e) {
+        S.logoSrc = logoResult;
+      }
     }
 
     // ── AI Content Rewrite ──
     if (aiContent) {
-      // Update appreciation fields
-      if (aiContent.appreciationHeading) { document.getElementById('appHeading').value = aiContent.appreciationHeading; }
-      if (aiContent.appreciationP1) { document.getElementById('appP1').value = aiContent.appreciationP1; }
-      if (aiContent.appreciationP2) { document.getElementById('appP2').value = aiContent.appreciationP2; }
-      if (aiContent.appreciationP3) { document.getElementById('appP3').value = aiContent.appreciationP3; }
-      if (aiContent.appreciationClosing) { document.getElementById('appClosing').value = aiContent.appreciationClosing; }
-      if (aiContent.appreciationSign) { document.getElementById('appSign').value = aiContent.appreciationSign; }
-      // Update core values
+      if (aiContent.appreciationHeading) document.getElementById('appHeading').value = aiContent.appreciationHeading;
+      if (aiContent.appreciationP1) document.getElementById('appP1').value = aiContent.appreciationP1;
+      if (aiContent.appreciationP2) document.getElementById('appP2').value = aiContent.appreciationP2;
+      if (aiContent.appreciationP3) document.getElementById('appP3').value = aiContent.appreciationP3;
+      if (aiContent.appreciationClosing) document.getElementById('appClosing').value = aiContent.appreciationClosing;
+      if (aiContent.appreciationSign) document.getElementById('appSign').value = aiContent.appreciationSign;
       if (aiContent.coreValues?.length) {
         S.coreValues = aiContent.coreValues;
         renderCoreValuesList();
       }
-      rend();
+      // Auto-populate company name from AI response if blank
+      const cnField = document.getElementById('companyName');
+      if (cnField && (!cnField.value || cnField.value === 'HRSoft')) {
+        cnField.value = companyName;
+        S.companyName = companyName;
+      }
     }
+
+    // ── Colors — auto-apply brand palette to all sections ──
+    if (colors && colors.length > 0) {
+      brandFetchData.colors = colors;
+      applyBrandColors(); // sets S.primaryColor, S.accentColor, S.sectionColors, calls applyColors()
+    }
+
+    // Single rend() after all updates
+    rend();
 
     const hasAnything = logoResult || (heroUrls?.length > 0) || (colors?.length > 0) || !!aiContent;
     document.getElementById('brandFetchResults').classList.toggle('show', hasAnything);
 
     const parts = [];
-    if (logoResult) parts.push('logo');
-    if (heroUrls?.length > 0) parts.push(`${heroUrls.length} hero image${heroUrls.length > 1 ? 's' : ''}`);
-    if (colors?.length > 0) parts.push('brand colors');
-    if (aiContent) parts.push('✨ AI content populated');
-    else parts.push('⚠ AI content failed — check console');
-    setBrandStatus(hasAnything ? `✓ Found: ${parts.join(', ')}` : `No assets found for ${domain}. Try uploading manually.`, hasAnything ? 'ok' : 'err');
+    if (logoResult) parts.push('logo ✓');
+    if (heroUrls?.length > 0) parts.push('hero ✓');
+    if (colors?.length > 0) parts.push('colors ✓');
+    if (aiContent) parts.push('AI content ✓');
+    else parts.push('⚠ AI content failed');
+    setBrandStatus(`Brand applied: ${parts.join(' · ')}`, hasAnything ? 'ok' : 'err');
 
   } catch(err) {
     console.error(err);
@@ -2212,9 +2293,10 @@ function applyBrandColors() {
   const colors = brandFetchData.colors;
   if (!colors.length) return;
 
-  // First primary = primary color, first accent = accent
   const primary = colors.find(c => c.role === 'primary');
-  const accent = colors.find(c => c.role === 'accent');
+  const accent  = colors.find(c => c.role === 'accent');
+  const primary2 = colors.filter(c => c.role === 'primary')[1];
+  const accent2  = colors.filter(c => c.role === 'accent')[1];
 
   if (primary) {
     S.primaryColor = primary.hex;
@@ -2226,6 +2308,26 @@ function applyBrandColors() {
     document.getElementById('accentCustom').value = accent.hex;
     document.querySelectorAll('#accentSwatches .swatch').forEach(s => s.classList.remove('sel'));
   }
+
+  // Push brand colors into every section so tables/headers all update
+  // compensation & direct comp get the primary; other sections get accent variants
+  const p = primary?.hex || S.primaryColor;
+  const a = accent?.hex  || S.accentColor;
+  const p2 = primary2?.hex || p;
+  const a2 = accent2?.hex  || a;
+
+  S.sectionColors = {
+    appreciation:  null,   // keeps doc default (navy text looks fine)
+    compensation:  p,      // total comp header bar
+    directcomp:    p,      // direct comp section heading
+    retirement:    p2,     // 401(k) heading
+    bonus:         a,      // bonus section
+    health:        p,      // health benefits
+    additional:    a2,     // additional benefits
+    lti:           p,      // LTI section
+    insights:      p,      // insights sidebar
+  };
+
   applyColors(); rend();
   setBrandStatus('✓ Brand colors applied to document!', 'ok');
 }
@@ -2508,8 +2610,12 @@ function rend() {
 
     <!-- HERO -->
     <div class="doc-hero">
-      ${S.heroBgSrc ? `<div class="doc-hero-bg" style="background-image:url('${S.heroBgSrc}')"></div>` : `<div class="doc-hero-bg" style="background:linear-gradient(135deg,#1B3A5C 0%,#2E6DA4 100%)"></div>`}
-      <div class="doc-hero-overlay"></div>
+      ${S.heroBgSrc
+        ? `<div class="doc-hero-bg" style="background-image:url('${S.heroBgSrc}');background-size:cover;background-position:center center"></div>
+           <div class="doc-hero-overlay brand-tint" style="background:linear-gradient(to right,${hexToRgba(S.primaryColor||'#1B3A5C',0.75)} 0%,${hexToRgba(S.primaryColor||'#1B3A5C',0.3)} 55%,${hexToRgba(S.primaryColor||'#1B3A5C',0.1)} 100%)"></div>`
+        : `<div class="doc-hero-bg" style="background:linear-gradient(135deg,${S.primaryColor||'#1B3A5C'} 0%,${S.accentColor||'#2E6DA4'} 100%)"></div>
+           <div class="doc-hero-overlay"></div>`
+      }
       <div class="doc-hero-content">
         <div class="doc-hero-name" style="font-size:30px;font-weight:800">${heroWelcome}</div>
         <div class="doc-hero-sub" style="font-size:22px;font-weight:700">${heroTitle}</div>
@@ -2693,11 +2799,11 @@ function rend() {
         <div class="sb-section">
           <div class="sb-title"><span class="sb-icon">📊</span> LTI Awards</div>
           <div style="display:flex;gap:5px;margin-bottom:6px">
-            <div style="flex:1;background:var(--navy);color:white;border-radius:4px;padding:5px 7px;text-align:center">
+            <div style="flex:1;background:${S.primaryColor||'var(--navy)'};color:white;border-radius:4px;padding:5px 7px;text-align:center">
               <div style="font-size:8.5px;font-weight:400;opacity:0.8">Paid This Year</div>
               <div style="font-size:11px;font-weight:700">${fmtK(g('ltiPaidYear'))}</div>
             </div>
-            <div style="flex:1;background:rgba(27,58,92,0.85);color:white;border-radius:4px;padding:5px 7px;text-align:center">
+            <div style="flex:1;background:${S.accentColor||'var(--teal)'};color:white;border-radius:4px;padding:5px 7px;text-align:center">
               <div style="font-size:8.5px;font-weight:400;opacity:0.8">Total Award</div>
               <div style="font-size:11px;font-weight:700">${fmtK(g('ltiTotalAward'))}</div>
             </div>
@@ -2713,7 +2819,7 @@ function rend() {
               <canvas id="projChart" height="60"></canvas>
             </div>
           </div>
-          <button style="width:100%;margin-top:8px;padding:7px;background:white;border:1.5px solid var(--navy);border-radius:5px;color:var(--navy);font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer">Future Model</button>
+          <button style="width:100%;margin-top:8px;padding:7px;background:white;border:1.5px solid ${S.primaryColor||'var(--navy)'};border-radius:5px;color:${S.primaryColor||'var(--navy)'};font-family:var(--font);font-size:11px;font-weight:700;cursor:pointer">Future Model</button>
         </div>
 
         <div class="sb-section">
